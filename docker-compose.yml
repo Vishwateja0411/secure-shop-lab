@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: secureshop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: secureshop
+      POSTGRES_PASSWORD: secureshop_password
+      POSTGRES_DB: secureshop_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/seed/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secureshop -d secureshop_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - secureshop-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: secureshop-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://secureshop:secureshop_password@postgres:5432/secureshop_db
+      - UPLOAD_DIR=/app/uploads
+      - INVOICE_DIR=/app/invoices
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - uploads_data:/app/uploads
+      - invoices_data:/app/invoices
+    ports:
+      - "8000:8000"
+    networks:
+      - secureshop-net
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: secureshop-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - secureshop-net
+
+volumes:
+  postgres_data:
+    driver: local
+  uploads_data:
+    driver: local
+  invoices_data:
+    driver: local
+
+networks:
+  secureshop-net:
+    driver: bridge

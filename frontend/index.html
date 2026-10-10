@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureShop Lab — Web Application Security Training</title>
+    <meta name="description" content="Intentionally vulnerable e-commerce web application lab for application security and secure coding education.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="dark-theme">
+
+    <!-- Top Security Lab Status Banner -->
+    <div id="lab-banner" class="lab-banner vulnerable">
+        <div class="banner-content">
+            <span class="pulse-indicator"></span>
+            <span id="banner-text">CURRENT LAB STATUS: <strong>VULNERABLE TRAINING MODE</strong> (Educational Lab Active)</span>
+            <span class="banner-hint">Switch to SECURE_MODE in .env or via Admin Dashboard to test hardened defenses</span>
+        </div>
+        <div class="banner-actions">
+            <button id="btn-quick-toggle-mode" class="btn btn-sm btn-outline">Toggle SECURE_MODE</button>
+        </div>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand" onclick="navigateTo('catalog')">
+                <div class="brand-logo">🛡️</div>
+                <div class="brand-text">
+                    <span class="brand-title">SecureShop<span class="brand-accent">Lab</span></span>
+                    <span class="brand-badge">AppSec Sandbox</span>
+                </div>
+            </div>
+
+            <!-- Global Search Bar (Demonstrates LAB-002 SQLi & LAB-004 Reflected XSS) -->
+            <div class="nav-search">
+                <div class="search-input-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="global-search-input" placeholder="Search security gear (e.g. key, radio, ' OR 1=1 --)...">
+                    <button id="btn-search" class="btn btn-search">Search</button>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="nav-links">
+                <button class="nav-btn active" onclick="navigateTo('catalog')">Shop</button>
+                <button class="nav-btn" onclick="navigateTo('orders')">Orders</button>
+                <button class="nav-btn" onclick="navigateTo('profile')">Profile</button>
+                <button id="nav-btn-admin" class="nav-btn nav-admin" onclick="navigateTo('admin')">Admin & Security</button>
+                
+                <button id="nav-btn-cart" class="nav-btn cart-btn" onclick="openCartModal()">
+                    🛒 Cart <span id="cart-count-badge" class="badge">0</span>
+                </button>
+            </nav>
+
+            <!-- User Auth Profile Widget -->
+            <div class="nav-auth">
+                <div id="auth-logged-out" class="auth-group">
+                    <button class="btn btn-sm btn-ghost" onclick="openAuthModal('login')">Sign In</button>
+                    <button class="btn btn-sm btn-primary" onclick="openAuthModal('register')">Register</button>
+                </div>
+                <div id="auth-logged-in" class="auth-group hidden">
+                    <div class="user-chip" onclick="navigateTo('profile')">
+                        <img id="nav-avatar" src="uploads/default-avatar.png" alt="Avatar" class="avatar-sm">
+                        <div class="user-details-mini">
+                            <span id="nav-username" class="user-name">User</span>
+                            <span id="nav-role" class="user-role-badge">USER</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Application Container -->
+    <main class="main-content">
+
+        <!-- Search Results Reflection Banner (LAB-004 Reflected XSS demo) -->
+        <div id="search-reflection-banner" class="search-reflection-box hidden">
+            <div class="reflection-content">
+                <span class="icon">🔎</span>
+                <span id="reflection-target">Showing search results for: </span>
+            </div>
+            <button class="btn-close-sm" onclick="clearSearchFilter()">✕</button>
+        </div>
+
+        <!-- VIEW 1: PRODUCT CATALOG -->
+        <section id="view-catalog" class="view-section active">
+            <div class="catalog-hero">
+                <div class="hero-text">
+                    <h1 class="hero-title">Defensive & Penetration Testing Gear</h1>
+                    <p class="hero-subtitle">Interactive e-commerce security laboratory. Discover vulnerabilities, inspect source code, remediate flaws, and verify regression tests.</p>
+                </div>
+                <div class="catalog-filters">
+                    <button class="filter-chip active" onclick="filterCategory('')">All Gear</button>
+                    <button class="filter-chip" onclick="filterCategory('Hardware')">Hardware</button>
+                    <button class="filter-chip" onclick="filterCategory('Tools')">Tools</button>
+                    <button class="filter-chip" onclick="filterCategory('Accessories')">Accessories</button>
+                    <button class="filter-chip" onclick="filterCategory('Books')">Books</button>
+                </div>
+            </div>
+
+            <!-- Products Grid -->
+            <div id="products-grid" class="products-grid">
+                <!-- Dynamically populated products -->
+                <div class="loading-spinner">Loading catalog items...</div>
+            </div>
+        </section>
+
+        <!-- VIEW 2: ORDERS LIST & IDOR DEMO -->
+        <section id="view-orders" class="view-section hidden">
+            <div class="section-header">
+                <div>
+                    <h2>Customer Orders</h2>
+                    <p class="subtitle">Review your past orders and download official purchase invoices.</p>
+                </div>
+                <!-- IDOR Direct Query Tool for Students -->
+                <div class="idor-tester-card">
+                    <span class="lab-pill">LAB-001 IDOR</span>
+                    <span class="text-sm">Inspect order by ID:</span>
+                    <input type="number" id="idor-order-id-input" value="2" min="1" class="input-xs">
+                    <button class="btn btn-xs btn-warning" onclick="testIdorOrder()">Fetch Order Details</button>
+                </div>
+            </div>
+
+            <div id="orders-list-container" class="orders-table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Date</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th>Shipping Address</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody">
+                        <tr><td colspan="6" class="text-center">Loading orders...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- VIEW 3: USER PROFILE & ATTACK SURFACE LABS -->
+        <section id="view-profile" class="view-section hidden">
+            <div class="profile-layout">
+                <!-- User Profile Card -->
+                <div class="profile-sidebar card">
+                    <div class="avatar-upload-section">
+                        <img id="profile-avatar-img" src="uploads/default-avatar.png" alt="User Avatar" class="profile-avatar">
+                        
+                        <!-- LAB-006 Insecure File Upload Feature -->
+                        <div class="upload-controls">
+                            <label class="btn btn-xs btn-outline" for="avatar-file-input">
+                                📤 Upload Avatar <span class="lab-tag">LAB-006</span>
+                            </label>
+                            <input type="file" id="avatar-file-input" class="hidden" onchange="uploadAvatarFile()">
+                            <p class="upload-hint">Upload JPG, PNG, or inspect validation controls.</p>
+                        </div>
+                    </div>
+
+                    <div class="profile-info">
+                        <h3 id="profile-username">Username</h3>
+                        <p id="profile-email" class="text-muted">user@secureshop.lab</p>
+                        <span id="profile-role-badge" class="badge">ROLE_USER</span>
+                    </div>
+
+                    <div class="wallet-card">
+                        <div class="wallet-header">
+                            <span>Account Balance</span>
+                            <strong id="profile-balance" class="balance-amount">$100.00</strong>
+                        </div>
+                        
+                        <!-- LAB-012 Race Condition Feature -->
+                        <div class="promo-box">
+                            <span class="promo-title">🎁 One-Time Promo ($50.00 Credit)</span>
+                            <p class="text-xs text-muted">Test single-claim vs concurrent execution race conditions.</p>
+                            <div class="promo-actions">
+                                <button id="btn-claim-promo" class="btn btn-sm btn-success" onclick="claimPromoCredit()">Claim $50</button>
+                                <button class="btn btn-xs btn-outline-warning" onclick="testConcurrentRaceCondition()">⚡ Simulate Concurrent Race (LAB-012)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Labs & Settings -->
+                <div class="profile-main card">
+                    <h3>Account Security & Lab Features</h3>
+                    <p class="text-muted">Practice testing client and server side security mechanisms on this profile.</p>
+
+                    <!-- LAB-005 CSRF Demo Email Update Form -->
+                    <div class="lab-card-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h4>Email Address Management <span class="lab-pill">LAB-005 CSRF</span></h4>
+                                <p class="text-xs text-muted">Examine whether state-changing endpoints require anti-CSRF tokens.</p>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <input type="email" id="csrf-new-email" placeholder="new-email@secureshop.lab" class="input-text">
+                            <button class="btn btn-sm btn-primary" onclick="changeEmailCsrfDemo()">Update Email</button>
+                        </div>
+                    </div>
+
+                    <!-- LAB-007 Path Traversal Invoice Downloader -->
+                    <div class="lab-card-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h4>Invoice Document Retrieval <span class="lab-pill">LAB-007 Path Traversal</span></h4>
+                                <p class="text-xs text-muted">Controlled path input endpoint downloading invoices or sensitive server files.</p>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <input type="text" id="traversal-filename-input" value="invoice_sample.txt" class="input-text" placeholder="filename (e.g. invoice_sample.txt or ../../backend/app/config.py)">
+                            <button class="btn btn-sm btn-warning" onclick="downloadInvoiceFile()">Fetch Document</button>
+                        </div>
+                        <pre id="traversal-output" class="code-preview hidden"></pre>
+                    </div>
+
+                    <!-- Password Reset Simulation Link -->
+                    <div class="lab-card-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h4>Password Reset Simulation <span class="lab-pill">LAB-009 Weak Auth</span></h4>
+                                <p class="text-xs text-muted">Demonstrates reset token predictability and password complexity checks.</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline" onclick="openForgotPasswordModal()">Simulate Password Reset</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 4: ADMIN & SECURITY DASHBOARD -->
+        <section id="view-admin" class="view-section hidden">
+            <div class="admin-header">
+                <div>
+                    <h2>Admin Security & Vulnerability Operations Center</h2>
+                    <p class="subtitle">Operational security dashboard monitoring authentication, audit logs, and the 12 training vulnerabilities.</p>
+                </div>
+                <div class="admin-controls">
+                    <button class="btn btn-sm btn-primary" onclick="refreshAdminDashboard()">↻ Refresh Metrics</button>
+                    <button id="btn-admin-toggle-mode" class="btn btn-sm btn-danger" onclick="toggleSecureModeFromAdmin()">Toggle SECURE_MODE</button>
+                </div>
+            </div>
+
+            <!-- KPI Metric Cards -->
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-icon">👥</div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="metric-users">0</span>
+                        <span class="metric-label">Registered Users</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">📦</div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="metric-orders">0</span>
+                        <span class="metric-label">Completed Orders</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">🟢</div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="metric-login-success">0</span>
+                        <span class="metric-label">Successful Logins</span>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">⚠️</div>
+                    <div class="metric-data">
+                        <span class="metric-value" id="metric-login-failure">0</span>
+                        <span class="metric-label">Failed Auth Attempts</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vulnerability Lab Matrix -->
+            <div class="dashboard-section card">
+                <div class="section-title-row">
+                    <h3>Vulnerability Matrix (LAB-001 through LAB-012)</h3>
+                    <span class="text-xs text-muted">Inspect status, root cause, and remediation guide for each lab</span>
+                </div>
+                <div class="matrix-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Lab ID</th>
+                                <th>Vulnerability Name</th>
+                                <th>Category</th>
+                                <th>Mode Status</th>
+                                <th>Target Endpoint</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vulnerability-matrix-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SSRF Safe Local Simulator Console -->
+            <div class="dashboard-section card">
+                <div class="section-title-row">
+                    <div>
+                        <h3>Safe Local SSRF Console <span class="lab-pill">LAB-008 SSRF</span></h3>
+                        <p class="text-xs text-muted">Demonstrates internal microservice access vs strict domain allowlists. Lab rule: external internet access is prohibited.</p>
+                    </div>
+                </div>
+                <div class="ssrf-console-box">
+                    <div class="ssrf-input-row">
+                        <select id="ssrf-preset-select" class="select-input" onchange="applySsrfPreset()">
+                            <option value="http://backend:8000/api/mock-service/secret-vault">Internal Secret Vault (Restricted Microservice - Exploitable in Vulnerable Mode)</option>
+                            <option value="http://backend:8000/api/mock-service/internal-inventory">Internal Warehouse Inventory (Internal Service)</option>
+                            <option value="http://backend:8000/api/mock-service/public-catalog">Public Supplier Catalog (Allowlisted in Secure Mode)</option>
+                        </select>
+                        <input type="text" id="ssrf-target-url" value="http://backend:8000/api/mock-service/secret-vault" class="input-text">
+                        <button class="btn btn-sm btn-warning" onclick="triggerSsrfRequest()">Execute Fetch</button>
+                    </div>
+                    <div class="console-output-box">
+                        <span class="console-label">SERVER RESPONSE / ERROR:</span>
+                        <pre id="ssrf-response-output" class="console-code">// Select a preset endpoint and click 'Execute Fetch' to test SSRF handling</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Security Audit Log Stream -->
+            <div class="dashboard-section card">
+                <div class="section-title-row">
+                    <h3>Structured Security Audit Events</h3>
+                    <span class="text-xs text-muted">Real-time authentication, authorization, and administrative events (credentials redacted)</span>
+                </div>
+                <div class="logs-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Event Type</th>
+                                <th>User</th>
+                                <th>Source IP</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-logs-tbody">
+                            <tr><td colspan="5" class="text-center">Loading audit logs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- User Management & Role Switcher -->
+            <div class="dashboard-section card">
+                <div class="section-title-row">
+                    <h3>User & Access Management</h3>
+                    <p class="text-xs text-muted">Switch roles or inspect database users</p>
+                </div>
+                <div class="matrix-table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Balance</th>
+                                <th>Promo Claimed</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL: PRODUCT DETAILS & REVIEWS (LAB-003 Stored XSS) -->
+    <div id="modal-product-detail" class="modal-backdrop hidden">
+        <div class="modal-dialog card">
+            <button class="modal-close-btn" onclick="closeProductModal()">✕</button>
+            <div class="product-modal-body">
+                <div class="modal-img-col">
+                    <img id="modal-product-img" src="uploads/default-product.png" alt="Product Image" class="modal-product-image">
+                    <span id="modal-product-category" class="badge">Hardware</span>
+                </div>
+                <div class="modal-info-col">
+                    <h2 id="modal-product-title">Product Name</h2>
+                    <p id="modal-product-desc" class="product-desc-text">Product description</p>
+                    <div class="price-row">
+                        <span id="modal-product-price" class="product-price-lg">$0.00</span>
+                        <span id="modal-product-stock" class="stock-badge">50 in stock</span>
+                    </div>
+
+                    <div class="modal-actions-row">
+                        <input type="number" id="modal-add-qty" value="1" min="1" class="qty-input">
+                        <button id="modal-btn-add-cart" class="btn btn-primary" onclick="addProductFromModal()">Add to Cart</button>
+                    </div>
+
+                    <!-- Reviews Section (LAB-003 Stored XSS) -->
+                    <div class="reviews-section">
+                        <div class="reviews-header">
+                            <h4>Customer Reviews <span class="lab-pill">LAB-003 Stored XSS</span></h4>
+                        </div>
+
+                        <!-- Add Review Form -->
+                        <div class="review-form">
+                            <select id="new-review-rating" class="select-xs">
+                                <option value="5">⭐⭐⭐⭐⭐ (5/5)</option>
+                                <option value="4">⭐⭐⭐⭐ (4/5)</option>
+                                <option value="3">⭐⭐⭐ (3/5)</option>
+                            </select>
+                            <textarea id="new-review-comment" placeholder="Write your review (test stored payloads or benign feedback)..." rows="2" class="textarea-xs"></textarea>
+                            <button class="btn btn-xs btn-outline" onclick="submitProductReview()">Submit Review</button>
+                        </div>
+
+                        <!-- Reviews List -->
+                        <div id="modal-reviews-list" class="reviews-list">
+                            <!-- Populated dynamically. In vulnerable mode, innerHTML injection happens here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SHOPPING CART & CHECKOUT (LAB-011 Business Logic Flaw) -->
+    <div id="modal-cart" class="modal-backdrop hidden">
+        <div class="modal-dialog card modal-cart-dialog">
+            <button class="modal-close-btn" onclick="closeCartModal()">✕</button>
+            <h2>Your Shopping Cart <span class="lab-pill">LAB-011 Logic Flaw</span></h2>
+            <p class="text-xs text-muted">Test negative item quantity or client-supplied price manipulation in vulnerable mode.</p>
+
+            <div id="cart-items-container" class="cart-items-list">
+                <!-- Dynamically populated cart items -->
+            </div>
+
+            <div class="cart-summary-box">
+                <div class="coupon-row">
+                    <input type="text" id="cart-coupon-input" placeholder="Coupon Code (e.g. SAVE20)" class="input-text">
+                    <button class="btn btn-sm btn-outline" onclick="applyCartCoupon()">Apply</button>
+                </div>
+                <div class="shipping-row">
+                    <input type="text" id="cart-shipping-input" value="101 Cyber Street, District 9" placeholder="Shipping Address" class="input-text">
+                </div>
+                <div class="cart-total-row">
+                    <span>Subtotal:</span>
+                    <strong id="cart-total-amount">$0.00</strong>
+                </div>
+                <div class="cart-actions-row">
+                    <button class="btn btn-ghost" onclick="clearCart()">Empty Cart</button>
+                    <button class="btn btn-primary btn-checkout" onclick="executeCheckout()">Complete Checkout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: AUTHENTICATION (LOGIN / REGISTER) -->
+    <div id="modal-auth" class="modal-backdrop hidden">
+        <div class="modal-dialog card modal-auth-dialog">
+            <button class="modal-close-btn" onclick="closeAuthModal()">✕</button>
+            
+            <div class="auth-tabs">
+                <button id="tab-login" class="auth-tab active" onclick="switchAuthTab('login')">Sign In</button>
+                <button id="tab-register" class="auth-tab" onclick="switchAuthTab('register')">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="form-login" onsubmit="handleLoginSubmit(event)" class="auth-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" required placeholder="admin or alice or bob" class="input-text">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" required placeholder="••••••••" class="input-text">
+                </div>
+                <div class="demo-credentials-box">
+                    <span>Demo Accounts:</span>
+                    <div class="creds-tags">
+                        <span class="cred-chip" onclick="fillCreds('admin', 'AdminPass123!')">admin / AdminPass123!</span>
+                        <span class="cred-chip" onclick="fillCreds('alice', 'AlicePass123!')">alice / AlicePass123!</span>
+                        <span class="cred-chip" onclick="fillCreds('bob', 'BobPass123!')">bob / BobPass123!</span>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+                <div class="auth-footer-links">
+                    <a href="javascript:void(0)" onclick="openForgotPasswordModal()">Forgot Password?</a>
+                </div>
+            </form>
+
+            <!-- Register Form -->
+            <form id="form-register" onsubmit="handleRegisterSubmit(event)" class="auth-form hidden">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="reg-username" required placeholder="Choose username" class="input-text">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="reg-email" required placeholder="user@secureshop.lab" class="input-text">
+                </div>
+                <div class="form-group">
+                    <label>Password <span class="text-xs text-muted">(Weak policy in vulnerable mode)</span></label>
+                    <input type="password" id="reg-password" required placeholder="Enter password" class="input-text">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: FORGOT & RESET PASSWORD (LAB-009) -->
+    <div id="modal-forgot-password" class="modal-backdrop hidden">
+        <div class="modal-dialog card modal-auth-dialog">
+            <button class="modal-close-btn" onclick="closeForgotPasswordModal()">✕</button>
+            <h3>Password Reset Simulation</h3>
+            <p class="text-xs text-muted">Generates password reset token (predictable format in vulnerable mode).</p>
+
+            <div class="form-group">
+                <label>Registered Email</label>
+                <input type="email" id="forgot-email" value="alice@secureshop.lab" class="input-text">
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="requestPasswordResetToken()">Generate Reset Token</button>
+
+            <div id="reset-token-display-box" class="reset-display hidden">
+                <p class="text-xs">Generated Token:</p>
+                <code id="display-reset-token" class="token-code"></code>
+                
+                <div class="form-group mt-3">
+                    <label>New Password</label>
+                    <input type="password" id="reset-new-password" placeholder="New strong password" class="input-text">
+                </div>
+                <button class="btn btn-sm btn-success" onclick="executePasswordReset()">Update Password</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
